@@ -1,0 +1,57 @@
+
+[
+  {
+    "id": 1,
+    "name": "Hydrating Face Serum",
+    "category": "Skincare",
+    "price": 799,
+    "description": "A lightweight hydrating serum for a smooth, refreshed look.",
+    "image": "https://placehold.co/600x400/fce7f3/9d174d?text=Face+Serum",
+    "stock": 25
+  },
+  {
+    "id": 2,
+    "name": "Daily Moisturizer",
+    "category": "Skincare",
+    "price": 599,
+    "description": "A daily moisturizer designed to leave skin feeling soft.",
+    "image": "https://placehold.co/600x400/fef3c7/92400e?text=Moisturizer",
+    "stock": 30
+  },
+  {
+    "id": 3,
+    "name": "Gentle Face Cleanser",
+    "category": "Skincare",
+    "price": 399,
+    "description": "A gentle cleanser for your everyday skincare routine.",
+    "image": "https://placehold.co/600x400/dcfce7/166534?text=Face+Cleanser",
+    "stock": 40
+  },
+  {
+    "id": 4,
+    "name": "Nourishing Hair Oil",
+    "category": "Hair Care",
+    "price": 449,
+    "description": "A hair-care oil for a nourishing self-care routine.",
+    "image": "https://placehold.co/600x400/e0e7ff/3730a3?text=Hair+Oil",
+    "stock": 20
+  },
+  {
+    "id": 5,
+    "name": "Body Care Gift Set",
+    "category": "Body Care",
+    "price": 999,
+    "description": "A body-care bundle for a relaxing daily routine.",
+    "image": "https://placehold.co/600x400/f3e8ff/7e22ce?text=Body+Care+Set",
+    "stock": 15
+  },
+  {
+    "id": 6,
+    "name": "Lip Care Balm",
+    "category": "Personal Care",
+    "price": 249,
+    "description": "A compact lip balm for everyday lip care.",
+    "image": "https://placehold.co/600x400/ffe4e6/9f1239?text=Lip+Balm",
+    "stock": 50
+  }
+]
