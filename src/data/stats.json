@@ -5,31 +5,31 @@
     "title": "Approved Investment",
     "value": "₹0.00",
     "description": "No approved investments yet",
-    "icon": "investment",
-    "color": "indigo"
+    "iconKey": "investment",
+    "iconStyle": "bg-indigo-50 text-indigo-600"
   },
   {
     "id": 2,
     "title": "ROI Earned",
     "value": "₹0.00",
     "description": "No ROI credited yet",
-    "icon": "roi",
-    "color": "blue"
+    "iconKey": "roi",
+    "iconStyle": "bg-blue-50 text-blue-600"
   },
   {
     "id": 3,
     "title": "Referral Earnings",
     "value": "₹0.00",
     "description": "No referral rewards yet",
-    "icon": "referrals",
-    "color": "purple"
+    "iconKey": "referral",
+    "iconStyle": "bg-purple-50 text-purple-600"
   },
   {
     "id": 4,
     "title": "Available Wallet",
     "value": "₹0.00",
     "description": "Available balance: ₹0.00",
-    "icon": "wallet",
-    "color": "amber"
+    "iconKey": "wallet",
+    "iconStyle": "bg-amber-50 text-amber-600"
   }
 ]

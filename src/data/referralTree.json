@@ -1,0 +1,67 @@
+
+[
+  {
+    "id": 1,
+    "name": "Atiya Nishat",
+    "code": "AN2026",
+    "status": "Active",
+    "level": 1,
+    "referredBy": "DEMO-1234"
+  },
+  {
+    "id": 2,
+    "name": "Chandrika",
+    "code": "CH2026",
+    "status": "Pending",
+    "level": 1,
+    "referredBy": "DEMO-1234"
+  },
+  {
+    "id": 3,
+    "name": "Geeta",
+    "code": "GA2026",
+    "status": "Active",
+    "level": 1,
+    "referredBy": "DEMO-1234"
+  },
+  {
+    "id": 4,
+    "name": "Sravani",
+    "code": "SH2026",
+    "status": "Pending",
+    "level": 1,
+    "referredBy": "DEMO-1234"
+  },
+  {
+    "id": 5,
+    "name": "Ayesha",
+    "code": "AY2026",
+    "status": "Active",
+    "level": 2,
+    "referredBy": "AN2026"
+  },
+  {
+    "id": 6,
+    "name": "Sana",
+    "code": "SA2026",
+    "status": "Active",
+    "level": 3,
+    "referredBy": "AY2026"
+  },
+  {
+    "id": 7,
+    "name": "Zoya",
+    "code": "ZO2026",
+    "status": "Active",
+    "level": 2,
+    "referredBy": "GA2026"
+  },
+  {
+    "id": 8,
+    "name": "Fatima",
+    "code": "FA2026",
+    "status": "Active",
+    "level": 4,
+    "referredBy": "SA2026"
+  }
+]

@@ -1,0 +1,24 @@
+
+[
+  {
+    "id": 1,
+    "type": "investment_roi",
+    "description": "Daily ROI Earnings",
+    "amount": 50,
+    "date": "2026-10-08"
+  },
+  {
+    "id": 2,
+    "type": "direct_referral_bonus",
+    "description": "Direct Referral Bonus",
+    "amount": 500,
+    "date": "2026-10-09"
+  },
+  {
+    "id": 3,
+    "type": "withdrawal",
+    "description": "Wallet Withdrawal",
+    "amount": -200,
+    "date": "2026-10-10"
+  }
+]

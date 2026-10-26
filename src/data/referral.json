@@ -1,0 +1,28 @@
+
+[
+  {
+    "id": 1,
+    "name": "Atiya Nishat",
+    "code": "AN2026",
+    "status": "Active"
+  },
+  {
+    "id": 2,
+    "name": "Chandrika",
+    "code": "CH2026",
+    "status": "Pending"
+  },
+  {
+    "id": 3,
+    "name": "Geeta",
+    "code": "GA2026",
+    "status": "Active"
+  },
+  {
+    "id" : 4,
+    "name":"Sravani",
+    "code": "SH2026",
+    "status":"Pending"
+
+  }
+]

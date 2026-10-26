@@ -1,5 +1,5 @@
-
-import React, { useState } from "react";
+import React, { useState, useContext } from "react";
+import { useEffect } from 'react'
 import { Link } from "react-router-dom";
 import {
   Search,
@@ -13,7 +13,8 @@ import {
   Sparkles,
 } from "lucide-react";
 
-import productsData from "../data/products.json";
+import ProductContext from "../Context/ProductContext"
+import CartContext from "../Context/CartContext";
 
 const categories = [
   "All Products",
@@ -27,17 +28,20 @@ const Products = () => {
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("All Products");
   const [sort, setSort] = useState("featured");
-  const [cart, setCart] = useState([]);
+  const { cart, addToCart, removeCart } = useContext(CartContext);
   const [wishList, setWishList] = useState([]);
+  const { products } = useContext(ProductContext)
 
-  const filteredProducts = productsData.filter((product) => {
+
+
+
+  const filteredProducts = products.filter((product) => {
     const matchesSearch = product.name
       .toLowerCase()
       .includes(search.toLowerCase());
 
     const matchesCategory =
-      category === "All Products" ||
-      product.category === category;
+      category === "All Products" || product.category === category;
 
     return matchesSearch && matchesCategory;
   });
@@ -50,49 +54,27 @@ const Products = () => {
     return 0;
   });
 
-  const addToCart = (product) => {
-    setCart((prevCart) => {
-      const alreadyAdded = prevCart.some(
-        (item) => item.id === product.id
-      );
-
-      if (alreadyAdded) return prevCart;
-
-      return [...prevCart, product];
-    });
-  };
-
-  const deleteCart = (pid) => {
-    setCart((prevCart) =>
-      prevCart.filter((item) => item.id !== pid)
-    );
-  };
-
   const addToWishList = (product) => {
     setWishList((prevWish) => {
-      const alreadyAdded = prevWish.some(
-        (item) => item.id === product.id
-      );
-
+      const alreadyAdded = prevWish.some((item) => item.id === product.id);
       if (alreadyAdded) return prevWish;
-
       return [...prevWish, product];
     });
   };
 
   const removeWishList = (pid) => {
-    setWishList((prevWish) =>
-      prevWish.filter((item) => item.id !== pid)
-    );
+    setWishList((prevWish) => prevWish.filter((item) => item.id !== pid));
   };
 
-  const formatPrice = (price) =>
-    `₹${price.toLocaleString("en-IN")}`;
+  const formatPrice = (price) => `₹${price.toLocaleString("en-IN")}`;
+
+
+
+
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800">
       <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-
         {/* Page heading */}
         <div className="mb-8 flex flex-col justify-between gap-5 sm:flex-row sm:items-center">
           <div>
@@ -115,13 +97,16 @@ const Products = () => {
           </div>
 
           <div className="flex gap-3">
-            <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
+            <Link
+              to="/cart"
+              className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm hover:bg-slate-50"
+            >
               <ShoppingCart size={19} className="text-indigo-600" />
               <div>
                 <p className="text-xs text-slate-500">Cart items</p>
                 <p className="font-bold">{cart.length}</p>
               </div>
-            </div>
+            </Link>
 
             <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
               <Heart size={19} className="text-rose-500" />
@@ -183,11 +168,10 @@ const Products = () => {
                 <button
                   key={item}
                   onClick={() => setCategory(item)}
-                  className={`rounded-full px-4 py-2 text-sm font-medium transition ${
-                    category === item
+                  className={`rounded-full px-4 py-2 text-sm font-medium transition ${category === item
                       ? "bg-indigo-600 text-white shadow-sm"
                       : "border border-slate-200 bg-white text-slate-600 hover:border-indigo-300 hover:text-indigo-600"
-                  }`}
+                    }`}
                 >
                   {item}
                 </button>
@@ -199,9 +183,7 @@ const Products = () => {
         {/* Product results */}
         <div className="mb-5 flex items-center justify-between gap-3">
           <div>
-            <h2 className="text-lg font-bold text-slate-900">
-              {category}
-            </h2>
+            <h2 className="text-lg font-bold text-slate-900">{category}</h2>
             <p className="mt-1 text-sm text-slate-500">
               {sortedProducts.length} products found
             </p>
@@ -212,10 +194,7 @@ const Products = () => {
 
         {sortedProducts.length === 0 ? (
           <div className="rounded-2xl border border-dashed border-slate-300 bg-white px-5 py-16 text-center">
-            <Search
-              size={36}
-              className="mx-auto mb-4 text-slate-300"
-            />
+            <Search size={36} className="mx-auto mb-4 text-slate-300" />
             <h3 className="text-lg font-semibold text-slate-800">
               No products found
             </h3>
@@ -235,13 +214,8 @@ const Products = () => {
         ) : (
           <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {sortedProducts.map((product) => {
-              const inCart = cart.some(
-                (item) => item.id === product.id
-              );
-
-              const inWishlist = wishList.some(
-                (item) => item.id === product.id
-              );
+              const inCart = cart.some((item) => item.id === product.id);
+              const inWishlist = wishList.some((item) => item.id === product.id);
 
               return (
                 <article
@@ -250,12 +224,18 @@ const Products = () => {
                 >
                   {/* Product image */}
                   <div className="relative overflow-hidden bg-slate-100">
-                    <img
-                      src={product.image}
-                      alt={product.name}
-                      loading="lazy"
-                      className="h-56 w-full object-cover transition duration-500 group-hover:scale-105"
-                    />
+                    {product.image ? (
+                      <img
+                        src={product.image}
+                        alt={product.name}
+                        loading="lazy"
+                        className="h-56 w-full object-cover transition duration-500 group-hover:scale-105"
+                      />
+                    ) : (
+                      <div className="flex h-56 w-full items-center justify-center bg-slate-100 text-slate-500">
+                        No Image Available
+                      </div>
+                    )}
 
                     <span className="absolute left-3 top-3 rounded-full border border-white/70 bg-white/90 px-3 py-1 text-xs font-semibold text-slate-700 backdrop-blur">
                       {product.category}
@@ -268,20 +248,15 @@ const Products = () => {
                           : addToWishList(product)
                       }
                       aria-label={
-                        inWishlist
-                          ? "Remove from wishlist"
-                          : "Add to wishlist"
+                        inWishlist ? "Remove from wishlist" : "Add to wishlist"
                       }
                       title={
-                        inWishlist
-                          ? "Remove from wishlist"
-                          : "Add to wishlist"
+                        inWishlist ? "Remove from wishlist" : "Add to wishlist"
                       }
-                      className={`absolute right-3 top-3 flex h-10 w-10 items-center justify-center rounded-full shadow-sm transition ${
-                        inWishlist
+                      className={`absolute right-3 top-3 flex h-10 w-10 items-center justify-center rounded-full shadow-sm transition ${inWishlist
                           ? "bg-rose-500 text-white"
                           : "bg-white/95 text-slate-600 hover:bg-rose-50 hover:text-rose-500"
-                      }`}
+                        }`}
                     >
                       <Heart
                         size={19}
@@ -302,20 +277,17 @@ const Products = () => {
 
                     <div className="mt-4 flex items-end justify-between gap-2">
                       <div>
-                        <p className="text-xs text-slate-400">
-                          Product price
-                        </p>
+                        <p className="text-xs text-slate-400">Product price</p>
                         <p className="mt-1 text-xl font-bold text-slate-900">
                           {formatPrice(product.price)}
                         </p>
                       </div>
 
                       <span
-                        className={`rounded-full px-2.5 py-1 text-xs font-medium ${
-                          product.stock > 0
+                        className={`rounded-full px-2.5 py-1 text-xs font-medium ${product.stock > 0
                             ? "bg-emerald-50 text-emerald-700"
                             : "bg-rose-50 text-rose-700"
-                        }`}
+                          }`}
                       >
                         {product.stock > 0
                           ? `${product.stock} in stock`
@@ -328,11 +300,10 @@ const Products = () => {
                       <button
                         onClick={() => addToCart(product)}
                         disabled={inCart || product.stock <= 0}
-                        className={`flex w-full items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-semibold transition ${
-                          inCart || product.stock <= 0
+                        className={`flex w-full items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-semibold transition ${inCart || product.stock <= 0
                             ? "cursor-not-allowed bg-slate-100 text-slate-400"
                             : "bg-indigo-600 text-white shadow-sm hover:bg-indigo-700 active:scale-[0.98]"
-                        }`}
+                          }`}
                       >
                         {inCart ? (
                           <>
@@ -349,7 +320,7 @@ const Products = () => {
 
                       {inCart && (
                         <button
-                          onClick={() => deleteCart(product.id)}
+                          onClick={() => removeCart(product.id)}
                           className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-600 transition hover:border-rose-200 hover:bg-rose-50 hover:text-rose-600"
                         >
                           Remove from Cart
@@ -362,11 +333,10 @@ const Products = () => {
                             ? removeWishList(product.id)
                             : addToWishList(product)
                         }
-                        className={`w-full rounded-xl border px-4 py-2.5 text-sm font-medium transition ${
-                          inWishlist
+                        className={`w-full rounded-xl border px-4 py-2.5 text-sm font-medium transition ${inWishlist
                             ? "border-rose-200 bg-rose-50 text-rose-600"
                             : "border-slate-200 text-slate-600 hover:border-rose-200 hover:bg-rose-50 hover:text-rose-600"
-                        }`}
+                          }`}
                       >
                         <span className="inline-flex items-center justify-center gap-2">
                           <Heart
@@ -387,9 +357,8 @@ const Products = () => {
         )}
 
         {/* Footer note */}
-        <p className="mt-8 text-center text-xs leading-5 text-slate-400">
-          Product information and prices are demonstration data.
-          Cart and wishlist changes are currently stored in page state.
+        <p className="mt-8 text-center text-xs text-slate-400">
+          AIdeas Platform · Built for a seamless shopping experience.
         </p>
       </main>
     </div>

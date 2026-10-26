@@ -1,455 +1,820 @@
 
 import {
-  FaHome,
-  FaWallet,
-  FaUsers,
-  FaShoppingBag,
-  FaSignOutAlt,
-  FaBell,
-  FaSearch,
-  FaArrowRight,
-  FaCopy,
-  FaChartLine,
-  FaMoneyBillWave,
-  FaUserFriends,
-  FaBars,
-  FaTimes,
-  FaClipboardList,
-  FaIdCard,
-  FaUser,
-  FaHeadset,
-  FaCheckCircle,
+    FaArrowRight,
+    FaCopy,
+    FaChartLine,
+    FaMoneyBillWave,
+    FaUserFriends,
+    FaWallet,
+    FaUsers,
+    FaClipboardList,
+    FaCheckCircle,
 } from "react-icons/fa";
 
-import { useState } from "react";
-import { Link, useLocation } from "react-router-dom";
-import stats from "../data/stats.json"
+import { Link } from "react-router-dom";
+import { useEffect, useState } from "react";
+
+import stats from "../data/stats.json";
+import { apiFetch } from "../api/apiFetch";
+
+const API_BASE_URL =
+    import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8001";
+
+const formatRupees = (amount) =>
+    Number(amount || 0).toLocaleString("en-IN", {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+    });
+
+function countNetworkMembers(nodes = []) {
+    return nodes.reduce(
+        (total, node) =>
+            total + 1 + countNetworkMembers(node.children || []),
+        0
+    );
+}
+
+function ReferralNode({ referral }) {
+    return (
+        <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+            <div className="flex items-center justify-between gap-2">
+                <p className="font-medium text-slate-800">
+                    {referral.username}
+                </p>
+
+                <span className="text-xs font-semibold text-indigo-600">
+                    Level {referral.level}
+                </span>
+            </div>
+
+            {referral.children?.length > 0 && (
+                <div className="mt-3 space-y-2 border-l-2 border-indigo-200 pl-3">
+                    {referral.children.map((child) => (
+                        <ReferralNode key={child.id} referral={child} />
+                    ))}
+                </div>
+            )}
+        </div>
+    );
+}
 
 function Dashboard() {
-  const [sidebarOpen, setSidebarOpen] = useState(false);
-  const location = useLocation();
+    // Profile and referral state
+    const [profile, setProfile] = useState(null);
+    const [referralCount, setReferralCount] = useState(0);
+    const [referralTree, setReferralTree] = useState([]);
+    const [loadingProfile, setLoadingProfile] = useState(true);
+    const [profileError, setProfileError] = useState("");
 
-  const menuItems = [
-    { name: "Dashboard", icon: <FaHome />, path: "/dashboard" },
-    { name: "Products", icon: <FaShoppingBag />, path: "/products" },
-    { name: "My Orders", icon: <FaClipboardList />, path: "/orders" },
-    { name: "My Referrals", icon: <FaUsers />, path: "/referrals" },
-    { name: "My Wallet", icon: <FaWallet />, path: "/wallet" },
-    { name: "Withdrawals", icon: <FaMoneyBillWave />, path: "/withdrawals" },
-    { name: "KYC Verification", icon: <FaIdCard />, path: "/kyc" },
-    { name: "My Profile", icon: <FaUser />, path: "/profile" },
-    { name: "Support", icon: <FaHeadset />, path: "/support" },
-  ];
+    // Wallet state
+    const [walletBalance, setWalletBalance] = useState(null);
+    const [walletTransactions, setWalletTransactions] = useState([]);
+    const [walletLoading, setWalletLoading] = useState(true);
+    const [walletError, setWalletError] = useState("");
+    const [hasMoreTransactions, setHasMoreTransactions] = useState(false);
 
-//   const stats = [
-//     {
-//       title: "Approved Investment",
-//       value: "₹0.00",
-//       description: "No approved investments yet",
-//       icon: <FaChartLine />,
-//       iconStyle: "bg-indigo-50 text-indigo-600",
-//     },
-//     {
-//       title: "ROI Earned",
-//       value: "₹0.00",
-//       description: "No ROI credited yet",
-//       icon: <FaMoneyBillWave />,
-//       iconStyle: "bg-blue-50 text-blue-600",
-//     },
-//     {
-//       title: "Referral Earnings",
-//       value: "₹0.00",
-//       description: "No referral rewards yet",
-//       icon: <FaUserFriends />,
-//       iconStyle: "bg-purple-50 text-purple-600",
-//     },
-//     {
-//       title: "Available Wallet",
-//       value: "₹0.00",
-//       description: "Available balance: ₹0.00",
-//       icon: <FaWallet />,
-//       iconStyle: "bg-amber-50 text-amber-600",
-//     },
-//   ];
+    // Orders are fetched from Django rather than CartContext.
+    const [orders, setOrders] = useState([]);
+    const [ordersLoading, setOrdersLoading] = useState(true);
+    const [ordersError, setOrdersError] = useState("");
 
-  const copyReferralCode = async () => {
-    try {
-      await navigator.clipboard.writeText("DEMO-1234");
-      alert("Demo referral code copied!");
-    } catch {
-      alert("Could not copy the code. Please copy DEMO-1234 manually.");
-    }
-  };
+    const [myInvestments, setMyInvestments] = useState([]);
+    const [roiHistory, setRoiHistory] = useState([]);
+    const [investmentLoading, setInvestmentLoading] = useState(true);
+    const [investmentError, setInvestmentError] = useState("");
 
-  return (
-    <div className="min-h-screen bg-slate-50 text-slate-800">
-      {/* Mobile sidebar overlay */}
-      {sidebarOpen && (
-        <div
-          className="fixed inset-0 z-40 bg-slate-950/50 md:hidden"
-          onClick={() => setSidebarOpen(false)}
-        />
-      )}
+    // Fetch profile, referrals and wallet data
+    useEffect(() => {
+        const controller = new AbortController();
 
-      {/* Sidebar */}
-      <aside
-        className={`fixed inset-y-0 left-0 z-50 flex w-64 flex-col bg-slate-950 text-white transition-transform duration-300 md:translate-x-0 ${
-          sidebarOpen ? "translate-x-0" : "-translate-x-full"
-        }`}
-      >
-        <div className="flex h-20 items-center gap-3 border-b border-white/10 px-6">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-600 text-xl font-bold">
-            A
-          </div>
+        const fetchDashboardData = async () => {
+            const token = sessionStorage.getItem("access");
 
-          <div>
-            <h1 className="text-xl font-bold tracking-wide">AIdeas</h1>
-            <p className="text-xs text-slate-400">Member Portal</p>
-          </div>
+            if (!token) {
+                setProfileError("Please log in again.");
+                setWalletError("Please log in again.");
+                setLoadingProfile(false);
+                setWalletLoading(false);
+                setInvestmentError("Please log in again.");
+                setInvestmentLoading(false);
+                setOrdersError("Please log in again.");
+                setOrdersLoading(false);
+                return;
+            }
 
-          <button
-            onClick={() => setSidebarOpen(false)}
-            className="ml-auto text-xl text-slate-300 md:hidden"
-            aria-label="Close sidebar"
-          >
-            <FaTimes />
-          </button>
-        </div>
+            const headers = {
+                Authorization: `Bearer ${token}`,
+            };
 
-        <div className="px-4 py-6">
-          <p className="mb-3 px-3 text-xs font-semibold uppercase tracking-widest text-slate-500">
-            Workspace
-          </p>
+            const fetchJSON = async (endpoint) => {
+                const response = await apiFetch(endpoint, {
+                    signal: controller.signal,
+                });
 
-          <nav className="space-y-1">
-            {menuItems.map((item) => {
-              const active = location.pathname === item.path;
+                if (!response.ok) {
+                    throw new Error(
+                        `Request failed: ${endpoint} (${response.status})`
+                    );
+                }
 
-              return (
-                <Link
-                  key={item.path}
-                  to={item.path}
-                  onClick={() => setSidebarOpen(false)}
-                  className={`flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium transition ${
-                    active
-                      ? "bg-indigo-600 text-white shadow-lg shadow-indigo-950/30"
-                      : "text-slate-400 hover:bg-white/5 hover:text-white"
-                  }`}
-                >
-                  <span className="text-base">{item.icon}</span>
-                  <span>{item.name}</span>
-                  {active && (
-                    <span className="ml-auto h-1.5 w-1.5 rounded-full bg-white" />
-                  )}
-                </Link>
-              );
-            })}
-          </nav>
-        </div>
+                return response.json();
+            };
 
-        <div className="mt-auto border-t border-white/10 p-4">
-          <div className="mb-4 flex items-center gap-3 rounded-xl bg-white/5 p-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-indigo-500 font-bold">
-              AT
-            </div>
 
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-semibold">Member Account</p>
-              <p className="text-xs text-slate-400">Demo profile</p>
-            </div>
-          </div>
+            // Fetch profile and referrals
+            const loadProfile = async () => {
+                try {
+                    const [profileData, countData, treeData] =
+                        await Promise.all([
+                            fetchJSON("/api/profile/"),
+                            fetchJSON("/api/referrals/count/"),
+                            fetchJSON("/api/referrals/tree/"),
+                        ]);
 
-          <Link
-            to="/login"
-            className="flex items-center gap-3 rounded-xl px-4 py-3 text-sm text-slate-400 transition hover:bg-red-500/10 hover:text-red-400"
-          >
-            <FaSignOutAlt />
-            Logout
-          </Link>
-        </div>
-      </aside>
+                    if (controller.signal.aborted) return;
 
-      {/* Main area */}
-      <div className="min-h-screen md:ml-64">
-        {/* Top navigation */}
-        <header className="sticky top-0 z-30 flex h-20 items-center justify-between border-b border-slate-200 bg-white/95 px-4 backdrop-blur md:px-8">
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => setSidebarOpen(true)}
-              className="rounded-lg border border-slate-200 p-2 text-slate-600 md:hidden"
-              aria-label="Open sidebar"
-            >
-              <FaBars />
-            </button>
+                    setProfile(profileData);
+                    setReferralCount(
+                        Number(countData.total_direct_referrals || 0)
+                    );
+                    setReferralTree(
+                        Array.isArray(treeData.referral_tree)
+                            ? treeData.referral_tree
+                            : []
+                    );
+                    setProfileError("");
+                } catch (error) {
+                    if (controller.signal.aborted) return;
+                    console.error("Profile error:", error);
+                    setProfileError(
+                        "Unable to load profile and referral details."
+                    );
+                } finally {
+                    if (!controller.signal.aborted) {
+                        setLoadingProfile(false);
+                    }
+                }
+            };
 
-            <div>
-              <p className="text-xs text-slate-400">Workspace / Dashboard</p>
-              <p className="mt-1 text-sm font-semibold text-slate-700">
-                Overview
-              </p>
-            </div>
-          </div>
+            // Fetch wallet balance and transactions
+            const loadWallet = async () => {
+                try {
+                    const [balanceData, transactionsData] =
+                        await Promise.all([
+                            fetchJSON("/api/balance/"),
+                            fetchJSON("/api/transactions/"),
+                        ]);
 
-          <div className="flex items-center gap-3 md:gap-5">
-            <div className="hidden items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 lg:flex">
-              <FaSearch className="text-slate-400" />
-              <input
-                type="search"
-                placeholder="Search..."
-                className="w-36 bg-transparent text-sm outline-none"
-              />
-            </div>
+                    if (controller.signal.aborted) return;
 
-            <button
-              className="relative rounded-xl border border-slate-200 p-2.5 text-slate-500 hover:bg-slate-50"
-              aria-label="Notifications"
-            >
-              <FaBell />
-              <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-indigo-600" />
-            </button>
+                    const balancePaise = Number(balanceData.balance_paise);
 
-            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-indigo-100 font-bold text-indigo-700">
-              AT
-            </div>
-          </div>
-        </header>
+                    if (!Number.isFinite(balancePaise)) {
+                        throw new Error("Invalid wallet balance received");
+                    }
 
+                    const transactions = Array.isArray(transactionsData)
+                        ? transactionsData
+                        : Array.isArray(transactionsData.results)
+                            ? transactionsData.results
+                            : [];
+
+                    setWalletBalance(balancePaise / 100);
+                    setWalletTransactions(transactions);
+
+                    // DRF paginated response may contain more transactions
+                    setHasMoreTransactions(
+                        !Array.isArray(transactionsData) &&
+                        Boolean(transactionsData.next)
+                    );
+
+                    setWalletError("");
+                } catch (error) {
+                    if (controller.signal.aborted) return;
+                    console.error("Wallet error:", error);
+                    setWalletBalance(null);
+                    setWalletTransactions([]);
+                    setWalletError("Unable to load wallet details.");
+                } finally {
+                    if (!controller.signal.aborted) {
+                        setWalletLoading(false);
+                    }
+                }
+            };
+
+            const loadInvestments = async () => {
+                try {
+                    const [investmentData, roiData] = await Promise.all([
+                        fetchJSON("/api/investments/my/"),
+                        fetchJSON("/api/investments/roi/history/"),
+                    ]);
+
+                    if (controller.signal.aborted) return;
+
+                    setMyInvestments(
+                        Array.isArray(investmentData) ? investmentData : []
+                    );
+
+                    setRoiHistory(
+                        Array.isArray(roiData) ? roiData : []
+                    );
+
+                    setInvestmentError("");
+                } catch (error) {
+                    if (controller.signal.aborted) return;
+
+                    console.error("Investment error:", error);
+                    setInvestmentError("Unable to load investments and ROI.");
+                } finally {
+                    if (!controller.signal.aborted) {
+                        setInvestmentLoading(false);
+                    }
+                }
+            };
+
+
+            const loadOrders = async () => {
+                try {
+                    const data = await fetchJSON("/api/orders/my/");
+                    if (controller.signal.aborted) return;
+
+                    // Supports both standard and paginated DRF responses.
+                    const items = Array.isArray(data)
+                        ? data
+                        : Array.isArray(data?.results)
+                            ? data.results
+                            : null;
+                    if (!items) throw new Error("Invalid orders response");
+                    setOrders(items);
+                    setOrdersError("");
+                } catch (error) {
+                    if (controller.signal.aborted) return;
+                    console.error("Orders error:", error);
+                    setOrders([]);
+                    setOrdersError("Unable to load orders from Django.");
+                } finally {
+                    if (!controller.signal.aborted) setOrdersLoading(false);
+                }
+            };
+
+            loadProfile();
+            loadWallet();
+            loadInvestments();
+            loadOrders();
+        };
+
+        fetchDashboardData();
+
+        return () => controller.abort();
+    }, []);
+
+    const iconMap = {
+        investment: <FaChartLine />,
+        roi: <FaMoneyBillWave />,
+        referral: <FaUserFriends />,
+        wallet: <FaWallet />,
+    };
+
+
+    // Only approved investments are returned by the Django investment API.
+    const totalInvestmentPaise = myInvestments.reduce(
+        (sum, investment) => sum + Number(investment.principal_paise || 0),
+        0
+    );
+    const totalInvestment = totalInvestmentPaise / 100;
+
+    // Projection only; actual eligibility and remaining duration are determined by backend.
+    const estimatedDailyROI = myInvestments.reduce((sum, investment) => {
+        const principalPaise = Number(investment.principal_paise || 0);
+        const roiPercent = Number(investment.roi_percent || 0);
+        return sum + (principalPaise * roiPercent / 10000);
+    }, 0);
+
+    // Recorded daily ROI, not projected ROI.
+    const totalROIEarned = roiHistory.reduce(
+        (sum, record) => sum + Number(record.amount_paise || 0) / 100,
+        0
+    );
+
+    // Payment and admin approval are distinct order states.
+    const totalOrders = orders.length;
+    const pendingOrders = orders.filter(
+        (order) => String(order.approval_status || "").toLowerCase() === "pending"
+    ).length;
+    const totalSpent = orders
+        .filter((order) => String(order.payment_status || "").toLowerCase() === "paid")
+        .reduce((total, order) => total + Number(order.amount_paise || 0), 0) / 100;
+    const recentOrders = [...orders]
+        .sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0))
+        .slice(0, 5);
+
+    // Wallet data comes from Django.
+    const recentTransactions = walletTransactions.slice(0, 3);
+
+    const loadedReferralEarnings = walletTransactions
+        .filter(
+            (transaction) =>
+                transaction.transaction_type === "direct_referral_bonus"
+        )
+        .reduce(
+            (total, transaction) =>
+                total + Number(transaction.amount_paise || 0) / 100,
+            0
+        );
+
+    const copyReferralCode = async () => {
+        if (!profile?.referral_code) {
+            alert("Referral code is not available.");
+            return;
+        }
+
+        try {
+            await navigator.clipboard.writeText(profile.referral_code);
+            alert("Referral code copied!");
+        } catch (error) {
+            console.error(error);
+            alert("Unable to copy referral code.");
+        }
+    };
+
+    const getStatValue = (stat) => {
+        switch (stat.iconKey) {
+            case "investment":
+                return investmentLoading ? "Loading..." : investmentError ? "—" : `₹${formatRupees(totalInvestment)}`;
+
+            case "roi":
+                return investmentLoading ? "Loading..." : investmentError ? "—" : `₹${formatRupees(totalROIEarned)}`;
+
+            case "referral":
+                if (walletLoading) return "Loading...";
+                if (walletError || hasMoreTransactions) return "—";
+                return `₹${formatRupees(loadedReferralEarnings)}`;
+
+            case "wallet":
+                if (walletLoading) return "Loading...";
+                if (walletError || walletBalance === null) return "—";
+                return `₹${formatRupees(walletBalance)}`;
+
+            default:
+                return stat.value;
+        }
+    };
+
+    const getStatDescription = (stat) => {
+        switch (stat.iconKey) {
+            case "investment":
+                return investmentError ? "Unable to load investments" : `${myInvestments.length} investment records`;
+
+            case "roi":
+                return "Recorded daily ROI history";
+
+            case "referral":
+                return walletError
+                    ? "Unable to load earnings"
+                    : hasMoreTransactions
+                        ? "Lifetime total requires backend aggregation"
+                        : "Direct referral bonuses";
+
+            case "wallet":
+                return walletError
+                    ? "Unable to load wallet balance"
+                    : "Balance from your wallet ledger";
+
+            default:
+                return stat.description;
+        }
+    };
+
+    return (
         <main className="p-4 md:p-8">
-          {/* Welcome section */}
-          <section className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
-            <div>
-              <p className="text-sm font-medium text-indigo-600">
-                MEMBER DASHBOARD
-              </p>
-
-              <h2 className="mt-2 text-2xl font-bold tracking-tight text-slate-900 md:text-3xl">
-                Welcome back!
-              </h2>
-
-              <p className="mt-2 text-sm text-slate-500">
-                Here's an overview of your account activity.
-              </p>
-            </div>
-
-            <Link
-              to="/products"
-              className="inline-flex items-center justify-center gap-2 rounded-xl bg-indigo-600 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-indigo-200 transition hover:bg-indigo-700"
-            >
-              Explore Products
-              <FaArrowRight />
-            </Link>
-          </section>
-
-          {/* Demo notice */}
-          <div className="mt-6 flex items-start gap-3 rounded-xl border border-indigo-100 bg-indigo-50 p-4 text-sm text-indigo-900">
-            <FaCheckCircle className="mt-0.5 shrink-0 text-indigo-600" />
-            <p>
-              <span className="font-semibold">Demo mode:</span> These values
-              are placeholders. Verified account information will appear after
-              backend integration.
-            </p>
-          </div>
-
-          {/* Summary cards */}
-          <section className="mt-8 grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
-            {stats.map((stat) => (
-              <div
-                key={stat.id}
-                className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm transition hover:-translate-y-1 hover:shadow-md"
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <p className="text-sm font-medium text-slate-500">
-                      {stat.title}
+            {/* Welcome Section */}
+            <section className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
+                <div>
+                    <p className="text-sm font-medium text-indigo-600">
+                        MEMBER DASHBOARD
                     </p>
 
-                    <h3 className="mt-4 text-2xl font-bold tracking-tight text-slate-900">
-                      {stat.value}
-                    </h3>
-                  </div>
+                    <h2 className="mt-2 text-2xl font-bold tracking-tight text-slate-900 md:text-3xl">
+                        Welcome back, {profile?.username || "Member"}!
+                    </h2>
 
-                  <div
-                    className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-lg ${stat.iconStyle}`}
-                  >
-                    {stat.icon}
-                  </div>
+                    <p className="mt-2 text-sm text-slate-500">
+                        Here's an overview of your account activity.
+                    </p>
+
+                    {profileError && (
+                        <p className="mt-2 text-sm text-red-600">
+                            {profileError}
+                        </p>
+                    )}
                 </div>
-
-                <p className="mt-4 border-t border-slate-100 pt-3 text-xs text-slate-400">
-                  {stat.description}
-                </p>
-              </div>
-            ))}
-          </section>
-
-          {/* Main dashboard panels */}
-          <section className="mt-8 grid gap-6 xl:grid-cols-3">
-            {/* Account overview */}
-            <div className="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-sm xl:col-span-2">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h3 className="text-lg font-bold text-slate-900">
-                    Account Overview
-                  </h3>
-                  <p className="mt-1 text-sm text-slate-500">
-                    Your account activity at a glance
-                  </p>
-                </div>
-
-                <div className="rounded-xl bg-slate-100 p-3 text-slate-500">
-                  <FaChartLine />
-                </div>
-              </div>
-
-              <div className="mt-6 flex min-h-56 flex-col items-center justify-center rounded-xl border border-dashed border-slate-200 bg-slate-50/70 px-5 py-8 text-center">
-                <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-indigo-50 text-2xl text-indigo-500">
-                  <FaClipboardList />
-                </div>
-
-                <h4 className="mt-4 font-semibold text-slate-800">
-                  Your account activity will appear here
-                </h4>
-
-                <p className="mt-2 max-w-sm text-sm leading-6 text-slate-500">
-                  Once you have verified orders and account transactions, you
-                  can review your activity in this section.
-                </p>
 
                 <Link
-                  to="/products"
-                  className="mt-5 inline-flex items-center gap-2 text-sm font-semibold text-indigo-600 hover:text-indigo-800"
+                    to="/products"
+                    className="inline-flex items-center justify-center gap-2 rounded-xl bg-indigo-600 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-indigo-200 transition hover:bg-indigo-700"
                 >
-                  Browse Products
-                  <FaArrowRight />
+                    Explore Products
+                    <FaArrowRight />
                 </Link>
-              </div>
-            </div>
+            </section>
 
-            {/* Referral panel */}
-            <div className="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-sm">
-              <div className="flex items-center gap-3">
-                <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-purple-50 text-lg text-purple-600">
-                  <FaUsers />
-                </div>
+            {/* Welcome Notice */}
+            <div className="mt-6 flex items-start gap-3 rounded-xl border border-indigo-100 bg-indigo-50 p-4 text-sm text-indigo-900">
+                <FaCheckCircle className="mt-0.5 shrink-0 text-indigo-600" />
 
-                <div>
-                  <h3 className="font-bold text-slate-900">
-                    Referral Summary
-                  </h3>
-                  <p className="text-xs text-slate-500">
-                    Your referral overview
-                  </p>
-                </div>
-              </div>
-
-              <div className="mt-6">
-                <label className="text-xs font-semibold uppercase tracking-wider text-slate-400">
-                  Demo Referral Code
-                </label>
-
-                <div className="mt-2 flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 p-3">
-                  <span className="flex-1 font-semibold tracking-wider text-slate-700">
-                    DEMO-1234
-                  </span>
-
-                  <button
-                    onClick={copyReferralCode}
-                    className="rounded-lg p-2 text-indigo-600 transition hover:bg-indigo-50"
-                    title="Copy demo referral code"
-                    aria-label="Copy referral code"
-                  >
-                    <FaCopy />
-                  </button>
-                </div>
-
-                <p className="mt-2 text-xs text-slate-400">
-                  Placeholder only; not a valid referral code.
+                <p>
+                    Welcome back! Track your orders, monitor your referral
+                    network, and stay updated on your account activity — all
+                    in one place.
                 </p>
-              </div>
-
-              <div className="mt-6 grid grid-cols-2 gap-3">
-                <div className="rounded-xl bg-slate-50 p-4">
-                  <p className="text-xs text-slate-500">Direct Referrals</p>
-                  <p className="mt-2 text-2xl font-bold text-slate-900">0</p>
-                </div>
-
-                <div className="rounded-xl bg-slate-50 p-4">
-                  <p className="text-xs text-slate-500">Network Members</p>
-                  <p className="mt-2 text-2xl font-bold text-slate-900">0</p>
-                </div>
-              </div>
-
-              <Link
-                to="/referrals"
-                className="mt-5 flex w-full items-center justify-center gap-2 rounded-xl border border-slate-200 py-3 text-sm font-semibold text-slate-700 transition hover:border-indigo-200 hover:bg-indigo-50 hover:text-indigo-700"
-              >
-                View Referrals
-                <FaArrowRight />
-              </Link>
-            </div>
-          </section>
-
-          {/* Recent activity */}
-          <section className="mt-8 overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm">
-            <div className="flex flex-col justify-between gap-2 border-b border-slate-100 p-6 sm:flex-row sm:items-center">
-              <div>
-                <h3 className="text-lg font-bold text-slate-900">
-                  Recent Activity
-                </h3>
-                <p className="mt-1 text-sm text-slate-500">
-                  A record of your latest account events
-                </p>
-              </div>
-
-              <span className="w-fit rounded-lg bg-slate-100 px-3 py-1.5 text-xs font-medium text-slate-500">
-                Demo data
-              </span>
             </div>
 
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[600px] text-left text-sm">
-                <thead className="bg-slate-50 text-xs uppercase tracking-wider text-slate-500">
-                  <tr>
-                    <th className="px-6 py-4 font-semibold">Activity</th>
-                    <th className="px-6 py-4 font-semibold">Date</th>
-                    <th className="px-6 py-4 font-semibold">Status</th>
-                    <th className="px-6 py-4 text-right font-semibold">
-                      Amount
-                    </th>
-                  </tr>
-                </thead>
+            {/* Summary Cards */}
+            <section className="mt-8 grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
+                {stats.map((stat) => (
+                    <div
+                        key={stat.id}
+                        className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm transition hover:-translate-y-1 hover:shadow-md"
+                    >
+                        <div className="flex items-start justify-between gap-3">
+                            <div>
+                                <p className="text-sm font-medium text-slate-500">
+                                    {stat.title}
+                                </p>
 
-                <tbody>
-                  <tr>
-                    <td colSpan="4" className="px-6 py-12 text-center">
-                      <div className="flex flex-col items-center">
-                        <div className="flex h-12 w-12 items-center justify-center rounded-full bg-slate-100 text-slate-400">
-                          <FaClipboardList />
+                                <h3 className="mt-4 text-2xl font-bold tracking-tight text-slate-900">
+                                    {getStatValue(stat)}
+                                </h3>
+                            </div>
+
+                            <div
+                                className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-lg ${stat.iconStyle}`}
+                            >
+                                {iconMap[stat.iconKey]}
+                            </div>
                         </div>
 
-                        <p className="mt-3 font-medium text-slate-700">
-                          No activity yet
+                        <p className="mt-4 border-t border-slate-100 pt-3 text-xs text-slate-400">
+                            {getStatDescription(stat)}
                         </p>
+                    </div>
+                ))}
+            </section>
 
-                        <p className="mt-1 text-xs text-slate-400">
-                          Your account events will appear here when available.
-                        </p>
-                      </div>
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
+            {/* Order Summary */}
+            <section className="mt-8 grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
+                <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                    <p className="text-sm font-medium text-slate-500">
+                        Total Orders
+                    </p>
+                    <h3 className="mt-3 text-2xl font-bold text-slate-900">
+                        {ordersLoading ? "Loading..." : ordersError ? "—" : totalOrders}
+                    </h3>
+                </div>
+
+                <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                    <p className="text-sm font-medium text-slate-500">
+                        Pending Orders
+                    </p>
+                    <h3 className="mt-3 text-2xl font-bold text-amber-600">
+                        {ordersLoading ? "Loading..." : ordersError ? "—" : pendingOrders}
+                    </h3>
+                </div>
+
+                <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                    <p className="text-sm font-medium text-slate-500">
+                        Total Spent
+                    </p>
+                    <h3 className="mt-3 text-2xl font-bold text-indigo-600">
+                        {ordersLoading ? "Loading..." : ordersError ? "—" : `₹${formatRupees(totalSpent)}`}
+                    </h3>
+                </div>
+            </section>
+
+            <div className="mt-4 flex justify-end">
+                <Link
+                    to="/orders"
+                    className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-indigo-600 transition hover:border-indigo-200 hover:bg-indigo-50"
+                >
+                    View My Orders
+                    <FaArrowRight />
+                </Link>
             </div>
-          </section>
 
-          {/* Footer */}
-          <footer className="py-8 text-center text-xs text-slate-400">
-            © 2026 AIdeas Platform. Demo interface.
-          </footer>
+            {/* Main Dashboard Panels */}
+            <section className="mt-8 grid gap-6 xl:grid-cols-3">
+                {/* Account Overview */}
+                <div className="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-sm xl:col-span-2">
+                    <div className="flex items-center justify-between">
+                        <div>
+                            <h3 className="text-lg font-bold text-slate-900">
+                                Account Overview
+                            </h3>
+
+                            <p className="mt-1 text-sm text-slate-500">
+                                Your account activity at a glance
+                            </p>
+                        </div>
+
+                        <div className="rounded-xl bg-slate-100 p-3 text-slate-500">
+                            <FaChartLine />
+                        </div>
+                    </div>
+
+                    <div className="mt-6 flex min-h-56 flex-col items-center justify-center rounded-xl border border-dashed border-slate-200 bg-slate-50/70 px-5 py-8 text-center">
+                        <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-indigo-50 text-2xl text-indigo-500">
+                            <FaClipboardList />
+                        </div>
+
+                        <h4 className="mt-4 font-semibold text-slate-800">
+                            Investment & ROI Overview
+                        </h4>
+
+                        {investmentLoading ? (
+                            <p className="mt-2 text-sm text-slate-500">Loading investment details...</p>
+                        ) : investmentError ? (
+                            <p className="mt-2 text-sm text-red-600">{investmentError}</p>
+                        ) : (
+                            <>
+                                <p className="mt-2 max-w-sm text-sm leading-6 text-slate-500">
+                                    You have {myInvestments.length} investment records worth ₹{formatRupees(totalInvestment)}.
+                                </p>
+                                <p className="mt-3 text-sm text-slate-600">
+                                    Estimated daily ROI (before eligibility checks): ₹{formatRupees(estimatedDailyROI)}
+                                </p>
+                                <p className="mt-2 font-medium text-green-600">
+                                    Total recorded daily ROI: ₹{formatRupees(totalROIEarned)}
+                                </p>
+                                <p className="mt-2 text-xs text-slate-400">
+                                    Pending approvals are not included in the investments API.
+                                </p>
+                            </>
+                        )}
+
+                        <Link
+                            to="/investments"
+                            className="mt-5 inline-flex items-center gap-2 text-sm font-semibold text-indigo-600 hover:text-indigo-800"
+                        >
+                            View My Investments
+                            <FaArrowRight />
+                        </Link>
+                    </div>
+                </div>
+
+                {/* Referral Panel */}
+                <div className="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-sm">
+                    <div className="flex items-center gap-3">
+                        <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-purple-50 text-lg text-purple-600">
+                            <FaUsers />
+                        </div>
+
+                        <div>
+                            <h3 className="font-bold text-slate-900">
+                                Referral Summary
+                            </h3>
+                            <p className="text-xs text-slate-500">
+                                Your referral overview
+                            </p>
+                        </div>
+                    </div>
+
+                    <div className="mt-6">
+                        <label className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+                            My Referral Code
+                        </label>
+
+                        <div className="mt-2 flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 p-3">
+                            <span className="flex-1 font-semibold tracking-wider text-slate-700">
+                                {loadingProfile
+                                    ? "Loading..."
+                                    : profile?.referral_code || "Unavailable"}
+                            </span>
+
+                            <button
+                                onClick={copyReferralCode}
+                                className="rounded-lg p-2 text-indigo-600 transition hover:bg-indigo-50"
+                                title="Copy referral code"
+                                aria-label="Copy referral code"
+                            >
+                                <FaCopy />
+                            </button>
+                        </div>
+                    </div>
+
+                    <div className="mt-6 grid grid-cols-2 gap-3">
+                        <div className="rounded-xl bg-slate-50 p-4">
+                            <p className="text-xs text-slate-500">
+                                Direct Referrals
+                            </p>
+                            <p className="mt-2 text-2xl font-bold text-slate-900">
+                                {referralCount}
+                            </p>
+                        </div>
+
+                        <div className="rounded-xl bg-slate-50 p-4">
+                            <p className="text-xs text-slate-500">
+                                Network Members
+                            </p>
+                            <p className="mt-2 text-2xl font-bold text-slate-900">
+                                {countNetworkMembers(referralTree)}
+                            </p>
+                        </div>
+                    </div>
+
+                    <div className="mt-5">
+                        <h4 className="font-semibold text-slate-900">
+                            My Referral Network
+                        </h4>
+
+                        {loadingProfile ? (
+                            <p className="mt-2 text-sm text-slate-500">
+                                Loading referrals...
+                            </p>
+                        ) : profileError ? (
+                            <p className="mt-2 text-sm text-red-600">
+                                Unable to load referrals
+                            </p>
+                        ) : referralTree.length === 0 ? (
+                            <p className="mt-2 text-sm text-slate-500">
+                                No referrals found
+                            </p>
+                        ) : (
+                            <div className="mt-3 space-y-2">
+                                {referralTree.map((referral) => (
+                                    <ReferralNode
+                                        key={referral.id}
+                                        referral={referral}
+                                    />
+                                ))}
+                            </div>
+                        )}
+                    </div>
+
+                    <Link
+                        to="/referrals"
+                        className="mt-5 flex w-full items-center justify-center gap-2 rounded-xl border border-slate-200 py-3 text-sm font-semibold text-slate-700 transition hover:border-indigo-200 hover:bg-indigo-50 hover:text-indigo-700"
+                    >
+                        View Referrals
+                        <FaArrowRight />
+                    </Link>
+                </div>
+            </section>
+
+            {/* Recent Activity */}
+            <section className="mt-8 overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm">
+                <div className="flex flex-col justify-between gap-2 border-b border-slate-100 p-6 sm:flex-row sm:items-center">
+                    <div>
+                        <h3 className="text-lg font-bold text-slate-900">
+                            Recent Activity
+                        </h3>
+                        <p className="mt-1 text-sm text-slate-500">
+                            A record of your latest account events
+                        </p>
+                    </div>
+                </div>
+
+                {/* Wallet Transactions */}
+                <div className="space-y-3 border-b border-slate-100 p-6">
+                    <h4 className="mb-3 font-semibold text-slate-800">
+                        Recent Wallet Transactions
+                    </h4>
+
+                    {walletLoading ? (
+                        <p className="text-sm text-slate-500">
+                            Loading wallet transactions...
+                        </p>
+                    ) : walletError ? (
+                        <p className="text-sm text-red-600">
+                            {walletError}
+                        </p>
+                    ) : recentTransactions.length === 0 ? (
+                        <p className="text-sm text-slate-500">
+                            No wallet transactions yet.
+                        </p>
+                    ) : (
+                        recentTransactions.map((transaction) => {
+                            const amount =
+                                Number(transaction.amount_paise || 0) / 100;
+
+                            const transactionName = String(
+                                transaction.transaction_type || "Transaction"
+                            ).replaceAll("_", " ");
+
+                            return (
+                                <div
+                                    key={transaction.id}
+                                    className="flex items-center justify-between gap-4 rounded-lg border border-slate-200 p-3"
+                                >
+                                    <div className="min-w-0">
+                                        <p className="font-medium capitalize text-slate-800">
+                                            {transactionName}
+                                        </p>
+
+                                        <p className="mt-1 text-sm text-slate-500">
+                                            {transaction.created_at
+                                                ? new Date(
+                                                    transaction.created_at
+                                                ).toLocaleDateString("en-IN")
+                                                : "Date unavailable"}
+                                        </p>
+
+                                        {transaction.reference && (
+                                            <p className="mt-1 break-all text-xs text-slate-400">
+                                                Ref: {transaction.reference}
+                                            </p>
+                                        )}
+                                    </div>
+
+                                    <p
+                                        className={`shrink-0 font-semibold ${amount >= 0
+                                            ? "text-green-600"
+                                            : "text-red-600"
+                                            }`}
+                                    >
+                                        {amount > 0 ? "+" : amount < 0 ? "-" : ""}
+                                        ₹{formatRupees(Math.abs(amount))}
+                                    </p>
+                                </div>
+                            );
+                        })
+                    )}
+                </div>
+
+                {/* Recent Orders */}
+                <div className="px-6 pt-6">
+                    <h4 className="font-semibold text-slate-800">
+                        Recent Orders
+                    </h4>
+                </div>
+
+                <div className="overflow-x-auto">
+                    <table className="w-full min-w-[600px] text-left text-sm">
+                        <thead className="bg-slate-50 text-xs uppercase tracking-wider text-slate-500">
+                            <tr>
+                                <th className="px-6 py-4 font-semibold">
+                                    Activity
+                                </th>
+                                <th className="px-6 py-4 font-semibold">
+                                    Date
+                                </th>
+                                <th className="px-6 py-4 font-semibold">
+                                    Status
+                                </th>
+                                <th className="px-6 py-4 text-right font-semibold">
+                                    Amount
+                                </th>
+                            </tr>
+                        </thead>
+
+                        <tbody>
+                            {ordersLoading ? (
+                                <tr><td colSpan={4} className="px-6 py-10 text-center text-slate-500">Loading orders...</td></tr>
+                            ) : ordersError ? (
+                                <tr><td colSpan={4} className="px-6 py-10 text-center text-red-600">{ordersError}</td></tr>
+                            ) : recentOrders.length === 0 ? (
+                                <tr><td colSpan={4} className="px-6 py-10 text-center text-slate-500">No orders yet.</td></tr>
+                            ) : (
+                                recentOrders.map((order) => {
+                                    const approval = String(order.approval_status || "unknown").toLowerCase();
+                                    const payment = String(order.payment_status || "unknown").toLowerCase();
+                                    const statusStyle = approval === "approved"
+                                        ? "bg-green-50 text-green-700"
+                                        : approval === "rejected"
+                                            ? "bg-red-50 text-red-700"
+                                            : "bg-amber-50 text-amber-700";
+                                    return (
+                                        <tr key={order.id} className="border-t border-slate-100">
+                                            <td className="px-6 py-4 font-medium text-slate-800">
+                                                Order #{order.id}
+                                            </td>
+                                            <td className="px-6 py-4 text-slate-500">
+                                                {order.created_at
+                                                    ? new Date(order.created_at).toLocaleDateString("en-IN")
+                                                    : "—"}
+                                            </td>
+                                            <td className="px-6 py-4">
+                                                <span className={`rounded-full px-3 py-1 text-xs font-semibold capitalize ${statusStyle}`}>
+                                                    {approval}
+                                                </span>
+                                                <p className="mt-1 text-xs capitalize text-slate-500">Payment: {payment}</p>
+                                            </td>
+                                            <td className="px-6 py-4 text-right font-semibold text-slate-900">
+                                                ₹{formatRupees(Number(order.amount_paise || 0) / 100)}
+                                            </td>
+                                        </tr>
+                                    );
+                                })
+                            )}
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <footer className="py-8 text-center text-xs text-slate-400">
+                © 2026 AIdeas Platform.
+            </footer>
         </main>
-      </div>
-    </div>
-  );
+    );
 }
 
 export default Dashboard;
